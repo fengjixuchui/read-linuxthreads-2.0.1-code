@@ -25,24 +25,30 @@ int pthread_sigmask(int how, const sigset_t * newmask, sigset_t * oldmask)
   mask = *newmask;
   /* Don't allow PTHREAD_SIG_RESTART to be unmasked.
      Don't allow PTHREAD_SIG_CANCEL to be masked. */
+  // 做一些拦截处理，
   switch(how) {
   case SIG_SETMASK:
+    // 需要屏蔽restart信号
     sigaddset(&mask, PTHREAD_SIG_RESTART);
+    // 不能屏蔽cancel信号
     sigdelset(&mask, PTHREAD_SIG_CANCEL);
     break;
   case SIG_BLOCK:
+    // 不能屏蔽cancel
     sigdelset(&mask, PTHREAD_SIG_CANCEL);
     break;
   case SIG_UNBLOCK:
+    // 需要屏蔽restart
     sigdelset(&mask, PTHREAD_SIG_RESTART);
     break;
   }
+  // 调系统函数
   if (sigprocmask(how, &mask, oldmask) == -1)
     return errno;
   else
     return 0;
 }
-
+// 给线程发信号，即给进程发信号
 int pthread_kill(pthread_t thread, int signo)
 {
   if (kill(thread->p_pid, signo) == -1)
@@ -61,7 +67,9 @@ int sigwait(const sigset_t * set, int * sig)
 
   /* Get ready to block all signals except those in set
      and the cancellation signal */
+  // 全1，阻塞全部信号
   sigfillset(&mask);
+  // 不屏蔽取消信号
   sigdelset(&mask, PTHREAD_SIG_CANCEL);
   /* Signals in set are assumed blocked on entrance */
   /* Install our signal handler on all signals in set,
@@ -70,8 +78,10 @@ int sigwait(const sigset_t * set, int * sig)
     if (sigismember(set, s) && s != PTHREAD_SIG_CANCEL) {
       sigdelset(&mask, s);
       action.sa_handler = __pthread_sighandler;
+      // 在信号处理函数里阻塞所有的信号
       sigfillset(&action.sa_mask); /* block all signals in the handler */
       action.sa_flags = 0;
+      // 注册该信号对应的handler
       sigaction(s, &action, &(saved_signals[s]));
     }
   }
